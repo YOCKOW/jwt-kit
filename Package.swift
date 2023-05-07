@@ -16,7 +16,7 @@ let package = Package(
         MANGLE_END */
     ],
     dependencies: [
-        .package(url: "https://github.com/apple/swift-crypto.git", from: "2.0.0")
+        .package(url: "https://github.com/YOCKOW/swift-crypto.git", "1.0.0" ..< "4.0.0")
     ],
     targets: [
         .target(name: "CJWTKitBoringSSL"),
@@ -30,3 +30,16 @@ let package = Package(
     ],
      cxxLanguageStandard: .cxx11
 )
+
+import Foundation
+if ProcessInfo.processInfo.environment["YOCKOW_USE_LOCAL_PACKAGES"] != nil {
+  func localPath(with url: String) -> String {
+    guard let url = URL(string: url) else { fatalError("Unexpected URL.") }
+    let dirName = url.deletingPathExtension().lastPathComponent
+    return "../\(dirName)"
+  }
+  package.dependencies = package.dependencies.map {
+    guard case .sourceControl(_, let location, _) = $0.kind else { fatalError("Unexpected dependency.") }
+    return .package(path: localPath(with: location))
+  }
+}
