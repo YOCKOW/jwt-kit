@@ -1,9 +1,13 @@
-import Foundation
+#if !canImport(Darwin)
+    import FoundationEssentials
+#else
+    import Foundation
+#endif
 
 extension DataProtocol {
-    func copyBytes() -> [UInt8] {
+    public func copyBytes() -> [UInt8] {
         if let array = self.withContiguousStorageIfAvailable({ buffer in
-            return [UInt8](buffer)
+            [UInt8](buffer)
         }) {
             return array
         } else {

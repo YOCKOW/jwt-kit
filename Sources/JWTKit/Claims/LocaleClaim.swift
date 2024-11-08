@@ -1,10 +1,14 @@
-import struct Foundation.Locale
+#if !canImport(Darwin)
+    import FoundationEssentials
+#else
+    import Foundation
+#endif
 
 public struct LocaleClaim: JWTClaim, Equatable, ExpressibleByStringLiteral {
-    /// See `JWTClaim
+    /// See ``JWTClaim``.
     public var value: Locale
 
-    /// See `JWTClaim`.
+    /// See ``JWTClaim``.
     public init(value: Locale) {
         self.value = value
     }

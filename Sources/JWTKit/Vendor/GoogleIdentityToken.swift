@@ -98,13 +98,51 @@ public struct GoogleIdentityToken: JWTPayload {
     /// The value of the nonce supplied by your app in the authentication request. You should enforce protection against replay attacks by ensuring it is presented only once.
     public let nonce: String?
 
-    public func verify(using signer: JWTSigner) throws {
+    public init(
+        issuer: IssuerClaim,
+        subject: SubjectClaim,
+        audience: AudienceClaim,
+        authorizedPresenter: String,
+        issuedAt: IssuedAtClaim,
+        expires: ExpirationClaim,
+        atHash: String? = nil,
+        hostedDomain: GoogleHostedDomainClaim? = nil,
+        email: String? = nil,
+        emailVerified: BoolClaim? = nil,
+        name: String? = nil,
+        picture: String? = nil,
+        profile: String? = nil,
+        givenName: String? = nil,
+        familyName: String? = nil,
+        locale: LocaleClaim? = nil,
+        nonce: String? = nil
+    ) {
+        self.issuer = issuer
+        self.subject = subject
+        self.audience = audience
+        self.authorizedPresenter = authorizedPresenter
+        self.issuedAt = issuedAt
+        self.expires = expires
+        self.atHash = atHash
+        self.hostedDomain = hostedDomain
+        self.email = email
+        self.emailVerified = emailVerified
+        self.name = name
+        self.picture = picture
+        self.profile = profile
+        self.givenName = givenName
+        self.familyName = familyName
+        self.locale = locale
+        self.nonce = nonce
+    }
+
+    public func verify(using _: some JWTAlgorithm) throws {
         guard ["accounts.google.com", "https://accounts.google.com"].contains(self.issuer.value) else {
-            throw JWTError.claimVerificationFailure(name: "iss", reason: "Token not provided by Google")
+            throw JWTError.claimVerificationFailure(failedClaim: issuer, reason: "Token not provided by Google")
         }
 
         guard self.subject.value.count <= 255 else {
-            throw JWTError.claimVerificationFailure(name: "sub", reason: "Subject claim beyond 255 ASCII characters long.")
+            throw JWTError.claimVerificationFailure(failedClaim: subject, reason: "Subject claim beyond 255 ASCII characters long.")
         }
 
         try self.expires.verifyNotExpired()

@@ -1,11 +1,14 @@
-import Foundation
+#if !canImport(Darwin)
+    import FoundationEssentials
+#else
+    import Foundation
+#endif
 
 public protocol JWTMultiValueClaim: JWTClaim where Value: Collection, Value.Element: Codable {
     init(value: Value.Element)
 }
 
 extension JWTMultiValueClaim {
-    
     /// Single-element initializer. Uses the `CollectionOfOneDecoder` to work
     /// around the lack of an initializer on the `Collection` protocol. Not
     /// spectacularly efficient, but it works.
@@ -14,7 +17,7 @@ extension JWTMultiValueClaim {
     }
 
     /// Because multi-value claims can take either singular or plural form in
-    /// JSON, the default conformance to `Decodable` from `JWTClaim` isn't good
+    /// JSON, the default conformance to `Decodable` from ``JWTClaim`` isn't good
     /// enough.
     ///
     /// - Note: The spec is mute on what multi-value claims like `aud` with an
@@ -33,7 +36,7 @@ extension JWTMultiValueClaim {
     ///   and a fallback value, or we would have to export extensions on
     ///   `KeyedEncodingContainer` and `KeyedEncodingContainerProtocol` to
     ///   explicitly override behavior for types confroming to
-    ///   `JWTMultiValueClaim`, a tricky and error-prone approach relying on
+    ///   ``JWTMultiValueClaim``, a tricky and error-prone approach relying on
     ///   poorly-understood mechanics of static versus dynamic dispatch.
     ///
     /// - Note: The spec is also mute regarding the behavior of duplicate values
@@ -44,12 +47,14 @@ extension JWTMultiValueClaim {
         let container = try decoder.singleValueContainer()
 
         do {
-            self.init(value: try container.decode(Value.Element.self))
+            try self.init(value: container.decode(Value.Element.self))
         } catch DecodingError.typeMismatch(let type, let context)
-                where type == Value.Element.self && context.codingPath.count == container.codingPath.count {
+            where type == Value.Element.self
+            && context.codingPath.count == container.codingPath.count
+        {
             // Unfortunately, `typeMismatch()` doesn't let us explicitly look for what type found,
             // only what type was expected, so we have to match the coding path depth instead.
-            self.init(value: try container.decode(Value.self))
+            try self.init(value: container.decode(Value.self))
         }
     }
 
@@ -67,55 +72,54 @@ extension JWTMultiValueClaim {
     ///   this on `init(from decoder:)` above.
     public func encode(to encoder: Encoder) throws {
         var container = encoder.singleValueContainer()
-        
+
         switch self.value.first {
-            case let .some(value) where self.value.count == 1:
-                try container.encode(value)
-            default:
-                try container.encode(self.value)
+        case .some(let value) where self.value.count == 1:
+            try container.encode(value)
+        default:
+            try container.encode(self.value)
         }
     }
-
 }
 
 /// An extremely specialized `Decoder` whose only purpose is to spoon-feed the
 /// type being decoded a single unkeyed element. This ridiculously intricate
 /// workaround is used to get around the problem of `Collection` not having any
-/// initializers for the single-value initializer of `JWTMultiValueClaim`. The
+/// initializers for the single-value initializer of ``JWTMultiValueClaim``. The
 /// other workaround would be to require conformance to
 /// `ExpressibleByArrayLiteral`, but what fun would that be?
 private struct CollectionOfOneDecoder<T>: Decoder, UnkeyedDecodingContainer where T: Collection, T: Codable, T.Element: Codable {
     static func decode(_ element: T.Element) throws -> T {
-        return try T.init(from: self.init(value: element))
+        try T(from: self.init(value: element))
     }
 
     /// The single value we're returning.
     var value: T.Element
 
-    /// The `currentIndex` for `UnkeyedDecodingContainer`.
+    /// The `currentIndex` for ``UnkeyedDecodingContainer``.
     var currentIndex: Int = 0
-    
+
     /// We are our own unkeyed decoding container.
     func unkeyedContainer() throws -> UnkeyedDecodingContainer {
         return self
     }
-    
+
     /// Standard `decodeNil()` implementation. We could ask the value for its
     /// `nil`-ness, but returning `false` unconditionally will cause `Codable`
     /// to just defer to `Optional`'s decodable implementation anyway.
     mutating func decodeNil() throws -> Bool {
         return false
     }
-    
+
     /// Standard `decode<T>(_:)` implementation. If the type is correct, we
     /// return our singular value, otherwise error. We throw nice errors instead
     /// of using `fatalError()` mostly just in case someone implemented a
-    /// `Collection` with a really weird `Decodable` conformance.
-    mutating func decode<U>(_: U.Type) throws -> U where U : Decodable {
+    /// ``Collection`` with a really weird `Decodable` conformance.
+    mutating func decode<U>(_: U.Type) throws -> U where U: Decodable {
         guard !self.isAtEnd else {
             throw DecodingError.valueNotFound(U.self, .init(codingPath: [], debugDescription: "Unkeyed container went past the end?"))
         }
-        
+
         guard U.self == T.Element.self else {
             throw DecodingError.typeMismatch(U.self, .init(codingPath: [], debugDescription: "Asked for the wrong type!"))
         }
@@ -124,30 +128,29 @@ private struct CollectionOfOneDecoder<T>: Decoder, UnkeyedDecodingContainer wher
         return value as! U
     }
 
-    /// The error we throw for all operations we don't support (which is most
-    /// of them).
+    /// The error we throw for all operations we don't support (which is most of them).
     private var unsupportedError: DecodingError {
         return DecodingError.typeMismatch(Any.self, .init(codingPath: [], debugDescription: "This decoder doesn't support most things."))
     }
 
-    // `Decoder` and `UnkeyedDecodingContainer` conformance requirements. We don't bother tracking any coding path or
+    // ``Decoder`` and ``UnkeyedDecodingContainer`` conformance requirements. We don't bother tracking any coding path or
     // user info and we just fail instantly if asked for anything other than an unnested unkeyed container. The count
     // of the unkeyed container is always exactly one.
-    
+
     var codingPath: [CodingKey] = []
-    var userInfo: [CodingUserInfoKey : Any] = [:]
+    var userInfo: [CodingUserInfoKey: Any] = [:]
     var isAtEnd: Bool { currentIndex != 0 }
     var count: Int? = 1
-    
-    func container<Key>(keyedBy: Key.Type) throws -> KeyedDecodingContainer<Key> where Key : CodingKey {
+
+    func container<Key>(keyedBy _: Key.Type) throws -> KeyedDecodingContainer<Key> where Key: CodingKey {
         throw self.unsupportedError
     }
-    
+
     func singleValueContainer() throws -> SingleValueDecodingContainer {
         throw self.unsupportedError
     }
 
-    mutating func nestedContainer<N>(keyedBy: N.Type) throws -> KeyedDecodingContainer<N> where N: CodingKey {
+    mutating func nestedContainer<N>(keyedBy _: N.Type) throws -> KeyedDecodingContainer<N> where N: CodingKey {
         throw self.unsupportedError
     }
 

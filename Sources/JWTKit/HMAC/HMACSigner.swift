@@ -1,14 +1,30 @@
-import Foundation
-import Crypto
+@preconcurrency import Crypto
 
-internal struct HMACSigner<SHAType>: JWTAlgorithm where SHAType: HashFunction {
+#if !canImport(Darwin)
+    import FoundationEssentials
+#else
+    import Foundation
+#endif
+
+struct HMACSigner<SHAType>: JWTAlgorithm where SHAType: HashFunction {
     let key: SymmetricKey
     let name: String
 
-    func sign<Plaintext>(_ plaintext: Plaintext) throws -> [UInt8]
-        where Plaintext: DataProtocol
-    {
-        let authentication = Crypto.HMAC<SHAType>.authenticationCode(for: plaintext, using: self.key)
-        return Array(authentication)
+    init(key: SymmetricKey) {
+        self.key = key
+        switch SHAType.self {
+        case is SHA256.Type:
+            self.name = "HS256"
+        case is SHA384.Type:
+            self.name = "HS384"
+        case is SHA512.Type:
+            self.name = "HS512"
+        default:
+            fatalError("Unsupported hash function: \(SHAType.self)")
+        }
+    }
+
+    func sign(_ plaintext: some DataProtocol) throws -> [UInt8] {
+        Array(HMAC<SHAType>.authenticationCode(for: plaintext, using: self.key))
     }
 }
